@@ -85,8 +85,8 @@ class AudioInputSource:
             for device_index, device in enumerate(device_list):
                 # sometimes the audio device name string is truncated, so we need to match what we have and Loopback but otherwise be sloppy
                 if (
-                    default_output_device_name in device["name"]
-                    and "[Loopback]" in device["name"]
+                        default_output_device_name in device["name"]
+                        and "[Loopback]" in device["name"]
                 ):
                     # Return the loopback device index
                     _LOGGER.debug(
@@ -140,8 +140,8 @@ class AudioInputSource:
             idx: f"{hostapis[device['hostapi']]['name']}: {device['name']}"
             for idx, device in enumerate(devices)
             if (
-                device["max_input_channels"] > 0
-                and "asio" not in device["name"].lower()
+                    device["max_input_channels"] > 0
+                    and "asio" not in device["name"].lower()
             )
         }
 
@@ -158,6 +158,11 @@ class AudioInputSource:
                 vol.Optional("sample_rate", default=60): int,
                 vol.Optional("mic_rate", default=44100): int,
                 vol.Optional("fft_size", default=FFT_SIZE): int,
+                vol.Optional(
+                    "channel_number",
+                    default=1,
+                    description="USB channel number for audio input"
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=32)),
                 vol.Optional("min_volume", default=0.2): vol.All(
                     vol.Coerce(float), vol.Range(min=0.0, max=1.0)
                 ),
@@ -201,8 +206,8 @@ class AudioInputSource:
         if len(self._callbacks) != 0:
             self.activate()
         if (
-            old_input_device
-            and self._config["audio_device"] is not old_input_device
+                old_input_device
+                and self._config["audio_device"] is not old_input_device
         ):
             self._ledfx.events.fire_event(
                 AudioDeviceChangeEvent(
@@ -327,8 +332,8 @@ class AudioInputSource:
             device = input_devices[device_idx]
             channels = None
             if (
-                hostapis[device["hostapi"]]["name"] == "Windows WASAPI"
-                and "Loopback" in device["name"]
+                    hostapis[device["hostapi"]]["name"] == "Windows WASAPI"
+                    and "Loopback" in device["name"]
             ):
                 _LOGGER.info(
                     f"Loopback device detected: {device['name']} with {device['max_input_channels']} channels"
@@ -356,8 +361,10 @@ class AudioInputSource:
                         device["default_samplerate"]
                         / self._config["sample_rate"]
                     ),
-                    # only pass channels if we set it to something other than None
-                    **({"channels": channels} if channels is not None else {}),
+                    channels=channels,
+                    extra_settings=sd.CoreAudioSettings(
+                        channel_map=[self._config["channel_number"]]
+                    ) if "channel_number" in self._config else None,
                 )
 
             self.resampler = samplerate.Resampler("sinc_fastest", channels=1)
@@ -403,8 +410,8 @@ class AudioInputSource:
         if callback in self._callbacks:
             self._callbacks.remove(callback)
         if (
-            len(self._callbacks) <= self._subscriber_threshold
-            and self._audio_stream_active
+                len(self._callbacks) <= self._subscriber_threshold
+                and self._audio_stream_active
         ):
             if self._timer is not None:
                 self._timer.cancel()
@@ -416,8 +423,8 @@ class AudioInputSource:
             self._timer.cancel()
         self._timer = None
         if (
-            len(self._callbacks) <= self._subscriber_threshold
-            and self._audio_stream_active
+                len(self._callbacks) <= self._subscriber_threshold
+                and self._audio_stream_active
         ):
             self.deactivate()
 
@@ -643,10 +650,10 @@ class AudioAnalysisSource(AudioInputSource):
                     (
                         i
                         for i, f in enumerate(
-                            self.melbanks.melbank_processors[
-                                2
-                            ].melbank_frequencies
-                        )
+                        self.melbanks.melbank_processors[
+                            2
+                        ].melbank_frequencies
+                    )
                         if f > freq
                     ),
                     len(
@@ -660,8 +667,8 @@ class AudioAnalysisSource(AudioInputSource):
             (
                 i - 1
                 for i, f in enumerate(
-                    self.melbanks.melbank_processors[0].melbank_frequencies
-                )
+                self.melbanks.melbank_processors[0].melbank_frequencies
+            )
                 if f > self.freq_max_mels[0]
             ),
             self.melbanks.melbank_processors[0].melbank_frequencies[-1],
@@ -735,10 +742,10 @@ class AudioAnalysisSource(AudioInputSource):
         # calculates the % difference of the first value of the channel to the average for the channel
         if sum(self.beat_power_history) > 0:
             difference = (
-                beat_power
-                * self.beat_power_history_len
-                / sum(self.beat_power_history)
-                - 1
+                    beat_power
+                    * self.beat_power_history_len
+                    / sum(self.beat_power_history)
+                    - 1
             )
         else:
             difference = 0
@@ -746,9 +753,9 @@ class AudioAnalysisSource(AudioInputSource):
         self.beat_power_history.appendleft(beat_power)
 
         if (
-            difference >= self.beat_min_percent_diff
-            and melbank_max >= self.beat_min_amplitude
-            and time_now - self.beat_prev_time > self.beat_min_time_since
+                difference >= self.beat_min_percent_diff
+                and melbank_max >= self.beat_min_amplitude
+                and time_now - self.beat_prev_time > self.beat_min_time_since
         ):
             self.beat_prev_time = time_now
             return True
@@ -764,13 +771,13 @@ class AudioAnalysisSource(AudioInputSource):
             melbank[: self.freq_mel_indexes[0]]
         )
         self.freq_power_raw[1] = np.average(
-            melbank[self.freq_mel_indexes[0] : self.freq_mel_indexes[1]]
+            melbank[self.freq_mel_indexes[0]: self.freq_mel_indexes[1]]
         )
         self.freq_power_raw[2] = np.average(
-            melbank[self.freq_mel_indexes[1] : self.freq_mel_indexes[2]]
+            melbank[self.freq_mel_indexes[1]: self.freq_mel_indexes[2]]
         )
         self.freq_power_raw[3] = np.average(
-            melbank[self.freq_mel_indexes[2] : self.freq_mel_indexes[3]]
+            melbank[self.freq_mel_indexes[2]: self.freq_mel_indexes[3]]
         )
         np.minimum(self.freq_power_raw, 1, out=self.freq_power_raw)
         self.freq_power_filter.update(self.freq_power_raw)
@@ -801,7 +808,7 @@ class AudioAnalysisSource(AudioInputSource):
         this is just the sum of bass and beat power.
         """
         return (
-            self.get_freq_power(0, filtered) + self.get_freq_power(1, filtered)
+                self.get_freq_power(0, filtered) + self.get_freq_power(1, filtered)
         ) * 0.5
 
     def mids_power(self, filtered=True):
@@ -847,8 +854,8 @@ class AudioAnalysisSource(AudioInputSource):
         else:
             time_since_beat = time.time() - self.beat_timestamp
             oscillator = (
-                1 - (self.beat_period - time_since_beat) / self.beat_period
-            ) + self.beat_counter
+                                 1 - (self.beat_period - time_since_beat) / self.beat_period
+                         ) + self.beat_counter
             # ensure it's between [0 and 4). useful when audio cuts
             oscillator = oscillator % 4
         return oscillator
@@ -895,7 +902,7 @@ class AudioReactiveEffect(Effect):
         super().activate(channel)
 
         if not self._ledfx.audio or id(AudioAnalysisSource) != id(
-            self._ledfx.audio.__class__
+                self._ledfx.audio.__class__
         ):
             self._ledfx.audio = AudioAnalysisSource(
                 self._ledfx, self._ledfx.config.get("audio", {})
@@ -954,8 +961,8 @@ class AudioReactiveEffect(Effect):
             (
                 i
                 for i, x in enumerate(
-                    self.audio.melbanks.melbanks_config["max_frequencies"]
-                )
+                self.audio.melbanks.melbanks_config["max_frequencies"]
+            )
                 if x >= self._virtual.frequency_range.max
             ),
             len(self.audio.melbanks.melbanks_config["max_frequencies"]),
@@ -979,10 +986,10 @@ class AudioReactiveEffect(Effect):
             (
                 idx
                 for idx, freq in enumerate(
-                    self.audio.melbanks.melbank_processors[
-                        self._selected_melbank
-                    ].melbank_frequencies
-                )
+                self.audio.melbanks.melbank_processors[
+                    self._selected_melbank
+                ].melbank_frequencies
+            )
                 if freq >= self._virtual.frequency_range.max
             ),
             len(
@@ -1026,12 +1033,12 @@ class AudioReactiveEffect(Effect):
         """
         if filtered:
             melbank = self.audio.melbanks.melbanks_filtered[
-                self._selected_melbank
-            ][self._melbank_min_idx : self._melbank_max_idx]
+                          self._selected_melbank
+                      ][self._melbank_min_idx: self._melbank_max_idx]
         else:
             melbank = self.audio.melbanks.melbanks[self._selected_melbank][
-                self._melbank_min_idx : self._melbank_max_idx
-            ]
+                      self._melbank_min_idx: self._melbank_max_idx
+                      ]
 
         self.melbank_no_nan(melbank)
 
