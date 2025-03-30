@@ -160,7 +160,7 @@ class AudioInputSource:
                 vol.Optional("fft_size", default=FFT_SIZE): int,
                 vol.Optional(
                     "channel_number",
-                    default=1,
+                    default=0,
                     description="USB channel number for audio input"
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=32)),
                 vol.Optional("min_volume", default=0.2): vol.All(
@@ -351,6 +351,17 @@ class AudioInputSource:
                     )
                 )
             else:
+                # check that the input channel number is valid
+                input_channel = self._config.get("channel_number", 0)
+                if 0 < input_channel <= device["max_input_channels"]:
+                    extra_settings = sd.CoreAudioSettings(
+                        channel_map=[input_channel]
+                    )
+                else:
+                    _LOGGER.warning("Configured input channel number invalid, using default input channel.")
+                    extra_settings = None
+                    self._config["channel_number"] = 0
+
                 self._stream = self._audio.InputStream(
                     samplerate=int(device["default_samplerate"]),
                     device=device_idx,
@@ -362,9 +373,7 @@ class AudioInputSource:
                         / self._config["sample_rate"]
                     ),
                     channels=channels,
-                    extra_settings=sd.CoreAudioSettings(
-                        channel_map=[self._config["channel_number"]]
-                    ) if "channel_number" in self._config else None,
+                    extra_settings=extra_settings,
                 )
 
             self.resampler = samplerate.Resampler("sinc_fastest", channels=1)
