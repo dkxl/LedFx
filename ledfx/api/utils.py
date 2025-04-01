@@ -25,6 +25,7 @@ PERMITTED_KEYS = {
         "pitch_method",
         "onset_method",
         "pitch_tolerance",
+        "channel_number",
     ),
     "melbanks": (
         "max_frequencies",
