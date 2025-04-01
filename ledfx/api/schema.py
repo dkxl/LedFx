@@ -6,7 +6,7 @@ from aiohttp import web
 from ledfx.api import RestEndpoint
 from ledfx.api.utils import PERMITTED_KEYS, convertToJsonSchema
 from ledfx.config import CORE_CONFIG_SCHEMA, WLED_CONFIG_SCHEMA
-from ledfx.effects.audio import AudioAnalysisSource, AudioInputSource
+from ledfx.effects.audio import AudioAnalysisSource, AUDIO_CONFIG_SCHEMA
 from ledfx.effects.melbank import Melbank, Melbanks
 
 _LOGGER = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ class SchemaEndpoint(RestEndpoint):
             elif schema == "audio":
                 # Get audio schema
                 audio_input_schema = convertToJsonSchema(
-                    AudioInputSource.AUDIO_CONFIG_SCHEMA.fget()
+                    AUDIO_CONFIG_SCHEMA.fget()
                 )
                 audio_analysis_schema = convertToJsonSchema(
                     AudioAnalysisSource.CONFIG_SCHEMA
