@@ -8,7 +8,7 @@ import voluptuous as vol
 from ledfx.color import parse_color
 from ledfx.config import save_config
 from ledfx.consts import PROJECT_VERSION
-from ledfx.effects.audio import audio_input_devices
+from ledfx.effects.audio import AudioDevices
 from ledfx.events import Event
 from ledfx.integrations import Integration
 
@@ -287,7 +287,7 @@ class MQTT_HASS(Integration):
                     "stat_t": "~/state",
                     "icon": "mdi:volume-high",
                     "entity_category": "diagnostic",
-                    "options": [*audio_input_devices().values()],
+                    "options": [*AudioDevices.input_devices().values()],
                     "entity_category": "config",
                     "device": hass_device,
                 }
@@ -465,7 +465,7 @@ class MQTT_HASS(Integration):
                 # AudioSelector
                 client.publish(
                     f"{self._config['topic']}/select/ledfxaudio/state",
-                    audio_input_devices()[
+                    AudioDevices.input_devices()[
                         self._ledfx.config.get("audio", {}).get(
                             "audio_device", {}
                         )
@@ -533,7 +533,7 @@ class MQTT_HASS(Integration):
             if hasattr(self._ledfx, "audio") and self._ledfx.audio is not None:
                 # index = self._ledfx.audio.get_device_index_by_name(payload)
                 index = -1
-                for key, value in audio_input_devices().items():
+                for key, value in AudioDevices.input_devices().items():
                     if str(payload) == value:
                         index = key
 
