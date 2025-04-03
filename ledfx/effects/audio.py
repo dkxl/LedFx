@@ -156,10 +156,14 @@ AUDIO_INPUT_SCHEMA = vol.Schema(
                 "channel_number",
                 default=0,
                 description="USB channel number for audio input"
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=32)),
+            ): vol.All(vol.Coerce(int), vol.In([0, 1, 2, 3])),
             vol.Optional("min_volume", default=0.2): vol.All(
                 vol.Coerce(float), vol.Range(min=0.0, max=1.0)
             ),
+
+            # TODO: combine channel selection with device selection
+            # e.g. UR22 channel 1, UR22 channel 2, Host Microphone, etc
+
             vol.Optional(
                 "audio_device", default=AudioDevices.default_device_index()
             ): AudioDevices.device_index_validator,
@@ -209,7 +213,6 @@ class AudioInputSource:
             self._timer.start()
 
         self._ledfx.events.add_listener(shutdown_event, Event.LEDFX_SHUTDOWN)
-
 
     def update_config(self, config):
         """Deactivate the audio, update the config, then reactivate"""
@@ -367,9 +370,9 @@ class AudioInputSource:
                     )
                 )
             else:
-                # check that the input channel number is valid
-                input_channel = self._config.get("channel_number", 0)
-                if 0 < input_channel <= device["max_input_channels"]:
+                input_channel = self._config.get("channel_number", None)
+                valid_channels = [n for n in range(0, device["max_input_channels"])]
+                if input_channel is not None and input_channel in valid_channels:
                     extra_settings = sd.CoreAudioSettings(
                         channel_map=[input_channel]
                     )
@@ -424,6 +427,8 @@ class AudioInputSource:
     def subscribe(self, callback):
         """Registers a callback with the input source"""
         self._callbacks.append(callback)
+
+        #TODO: DH: this probably fires too soon, we have several callbacks to register
         if len(self._callbacks) > 0 and not self._audio_stream_active:
             self.activate()
         if self._timer is not None:
@@ -623,6 +628,26 @@ class AudioAnalysisSource(AudioInputSource):
         10000,
     ]
 
+    # TODO: DH: use two Munches (dotted dicts) to hold beat_state and freq_state
+    beat_power_history = None
+    beat_power_history_len = None
+    beat_prev_time = None
+    beat_min_amplitude = None
+    beat_min_time_since = None
+    beat_min_percent_diff = None
+    beat_period = None
+    beat_timestamp = None
+    beat_counter = None
+    beat_max_mel_index = None
+    freq_mel_indexes = None
+    freq_power_filter = None
+    freq_power_raw = None
+    melbanks = None
+    _pitch = None
+    _onset = None
+    _tempo = None
+
+
     def __init__(self, ledfx_instance, config):
         """
         Creates a new AudioAnalysisSource instance.
@@ -633,25 +658,6 @@ class AudioAnalysisSource(AudioInputSource):
         """
         config = AUDIO_ANALYSIS_SCHEMA(config)
         super().__init__(ledfx_instance, config)
-
-        # TODO: DH: use two Munches (dotted dicts) to hold beat_state and freq_state
-        self.beat_power_history = None
-        self.beat_power_history_len = None
-        self.beat_prev_time = None
-        self.beat_min_amplitude = None
-        self.beat_min_time_since = None
-        self.beat_min_percent_diff = None
-        self.beat_period = None
-        self.beat_timestamp = None
-        self.beat_counter = None
-        self.beat_max_mel_index = None
-        self.freq_mel_indexes = None
-        self.freq_power_filter = None
-        self.freq_power_raw = None
-        self.melbanks = None
-        self._pitch = None
-        self._onset = None
-        self._tempo = None
 
         self.initialise_analysis()
 
@@ -667,8 +673,10 @@ class AudioAnalysisSource(AudioInputSource):
         self._subscriber_threshold = len(self._callbacks)
 
     def initialise_analysis(self):
+        """Initialise the analysis callbacks"""
+
         # melbanks
-        if not hasattr(self, "melbanks"):
+        if self.melbanks is None:
             self.melbanks = Melbanks(
                 self._ledfx, self, self._ledfx.config.get("melbanks", {})
             )
