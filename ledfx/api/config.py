@@ -16,7 +16,7 @@ from ledfx.config import (
     save_config,
 )
 from ledfx.consts import CONFIGURATION_VERSION
-from ledfx.effects.audio import AudioAnalysisSource, AUDIO_INPUT_SCHEMA
+from ledfx.effects.audio import AUDIO_ANALYSIS_SCHEMA, AUDIO_INPUT_SCHEMA
 from ledfx.effects.melbank import Melbanks
 from ledfx.events import BaseConfigUpdateEvent
 
@@ -74,7 +74,7 @@ class ConfigEndpoint(RestEndpoint):
             config = self._ledfx.config.get(key)
 
             if key == "audio":
-                config = AUDIO_INPUT_SCHEMA(config)
+                config = AUDIO_INPUT_SCHEMA(config)   # But not the audio_analysis schema...
             elif key == "melbanks":
                 config = Melbanks.CONFIG_SCHEMA(config)
             elif key == "wled_preferences":
@@ -230,9 +230,11 @@ class ConfigEndpoint(RestEndpoint):
             "audio",
         )
 
+        #TODO: why is audio split into two schemas? Does the previous validation leave anything that will
+        #      match the analysis schema?
         audio_config = validate_and_trim_config(
             audio_config,
-            AudioAnalysisSource.CONFIG_SCHEMA,
+            AUDIO_ANALYSIS_SCHEMA,
             "audio",
         )
         wled_config = validate_and_trim_config(

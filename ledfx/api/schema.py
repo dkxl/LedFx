@@ -6,7 +6,7 @@ from aiohttp import web
 from ledfx.api import RestEndpoint
 from ledfx.api.utils import PERMITTED_KEYS, convertToJsonSchema
 from ledfx.config import CORE_CONFIG_SCHEMA, WLED_CONFIG_SCHEMA
-from ledfx.effects.audio import AudioAnalysisSource, AUDIO_INPUT_SCHEMA
+from ledfx.effects.audio import AUDIO_ANALYSIS_SCHEMA, AUDIO_INPUT_SCHEMA
 from ledfx.effects.melbank import Melbank, Melbanks
 
 _LOGGER = logging.getLogger(__name__)
@@ -123,10 +123,12 @@ class SchemaEndpoint(RestEndpoint):
                     AUDIO_INPUT_SCHEMA
                 )
                 audio_analysis_schema = convertToJsonSchema(
-                    AudioAnalysisSource.CONFIG_SCHEMA
+                    AUDIO_ANALYSIS_SCHEMA
                 )
                 # drop the tempo method from the audio analysis schema
                 # TODO: figure out a better way to handle this in the frontend
+                # TODO: DH: just merge the two schemas definitions I think
+
                 # permitted_keys isn't working
                 del audio_analysis_schema["properties"]["tempo_method"]
                 merged_schema = {**audio_input_schema, **audio_analysis_schema}

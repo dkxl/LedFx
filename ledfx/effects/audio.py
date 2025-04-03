@@ -5,6 +5,7 @@ import time
 from collections import deque
 from functools import cached_property, lru_cache
 
+
 import aubio
 import numpy as np
 import samplerate
@@ -165,7 +166,8 @@ AUDIO_INPUT_SCHEMA = vol.Schema(
             vol.Optional(
                 "delay_ms",
                 default=0,
-                description="Add a delay to LedFx's output to sync with your audio. Useful for Bluetooth devices which typically have a short audio lag.",
+                description="Add a delay to LedFx's output to sync with your audio. "
+                            + "Useful for Bluetooth devices which typically have a short audio lag.",
             ): vol.All(vol.Coerce(int), vol.Range(min=0, max=5000)),
         },
         extra=vol.ALLOW_EXTRA,
@@ -560,55 +562,61 @@ class AudioInputSource:
         return self._volume
 
 
+
+
+# https://aubio.org/doc/latest/pitch_8h.html
+PITCH_METHODS = [
+    "yinfft",
+    "yin",
+    "yinfast",
+    # mcomb and fcomb appears to just explode something deeep in the aubio code, no logs, no errors, it just dies.
+    # "mcomb",
+    # "fcomb",
+    "schmitt",
+    "specacf",
+]
+
+# https://aubio.org/doc/latest/specdesc_8h.html
+ONSET_METHODS = [
+    "energy",
+    "hfc",
+    "complex",
+    "phase",
+    "wphase",
+    "specdiff",
+    "kl",
+    "mkl",
+    "specflux",
+]
+
+AUDIO_ANALYSIS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            "pitch_method",
+            default="yinfft",
+            description="Method to detect pitch",
+        ): vol.In(PITCH_METHODS),
+        vol.Optional("tempo_method", default="default"): str,
+        vol.Optional(
+            "onset_method",
+            default="hfc",
+            description="Method used to detect onsets",
+        ): vol.In(ONSET_METHODS),
+        vol.Optional(
+            "pitch_tolerance",
+            default=0.8,
+            description="Pitch detection tolerance",
+        ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2)),
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+
 class AudioAnalysisSource(AudioInputSource):
-    # https://aubio.org/doc/latest/pitch_8h.html
-    PITCH_METHODS = [
-        "yinfft",
-        "yin",
-        "yinfast",
-        # mcomb and fcomb appears to just explode something deeep in the aubio code, no logs, no errors, it just dies.
-        # "mcomb",
-        # "fcomb",
-        "schmitt",
-        "specacf",
-    ]
-    # https://aubio.org/doc/latest/specdesc_8h.html
-    ONSET_METHODS = [
-        "energy",
-        "hfc",
-        "complex",
-        "phase",
-        "wphase",
-        "specdiff",
-        "kl",
-        "mkl",
-        "specflux",
-    ]
-    CONFIG_SCHEMA = vol.Schema(
-        {
-            vol.Optional(
-                "pitch_method",
-                default="yinfft",
-                description="Method to detect pitch",
-            ): vol.In(PITCH_METHODS),
-            vol.Optional("tempo_method", default="default"): str,
-            vol.Optional(
-                "onset_method",
-                default="hfc",
-                description="Method used to detect onsets",
-            ): vol.In(ONSET_METHODS),
-            vol.Optional(
-                "pitch_tolerance",
-                default=0.8,
-                description="Pitch detection tolerance",
-            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2)),
-        },
-        extra=vol.ALLOW_EXTRA,
-    )
 
     # some frequency constants
     # beat, bass, mids, high
-    freq_max_mels = [
+    FREQ_MAX_MELS = [
         100,
         250,
         3000,
@@ -623,8 +631,28 @@ class AudioAnalysisSource(AudioInputSource):
         :param config: The configuration dictionary
         :type config: dict
         """
-        config = self.CONFIG_SCHEMA(config)
+        config = AUDIO_ANALYSIS_SCHEMA(config)
         super().__init__(ledfx_instance, config)
+
+        # TODO: DH: use two Munches (dotted dicts) to hold beat_state and freq_state
+        self.beat_power_history = None
+        self.beat_power_history_len = None
+        self.beat_prev_time = None
+        self.beat_min_amplitude = None
+        self.beat_min_time_since = None
+        self.beat_min_percent_diff = None
+        self.beat_period = None
+        self.beat_timestamp = None
+        self.beat_counter = None
+        self.beat_max_mel_index = None
+        self.freq_mel_indexes = None
+        self.freq_power_filter = None
+        self.freq_power_raw = None
+        self.melbanks = None
+        self._pitch = None
+        self._onset = None
+        self._tempo = None
+
         self.initialise_analysis()
 
         # Subscribe functions to be run on every frame of audio
@@ -666,13 +694,13 @@ class AudioAnalysisSource(AudioInputSource):
         self.beat_period = 2
 
         # freq power
-        self.freq_power_raw = np.zeros(len(self.freq_max_mels))
+        self.freq_power_raw = np.zeros(len(self.FREQ_MAX_MELS))
         self.freq_power_filter = ExpFilter(
-            np.zeros(len(self.freq_max_mels)), alpha_decay=0.2, alpha_rise=0.97
+            np.zeros(len(self.FREQ_MAX_MELS)), alpha_decay=0.2, alpha_rise=0.97
         )
         self.freq_mel_indexes = []
 
-        for freq in self.freq_max_mels:
+        for freq in self.FREQ_MAX_MELS:
             assert self.melbanks.melbanks_config["max_frequencies"][2] >= freq
 
             self.freq_mel_indexes.append(
@@ -699,7 +727,7 @@ class AudioAnalysisSource(AudioInputSource):
                 for i, f in enumerate(
                 self.melbanks.melbank_processors[0].melbank_frequencies
             )
-                if f > self.freq_max_mels[0]
+                if f > self.FREQ_MAX_MELS[0]
             ),
             self.melbanks.melbank_processors[0].melbank_frequencies[-1],
         )
@@ -708,12 +736,11 @@ class AudioAnalysisSource(AudioInputSource):
         self.beat_min_time_since = 0.1
         self.beat_min_amplitude = 0.5
         self.beat_power_history_len = int(self._config["sample_rate"] * 0.2)
-
         self.beat_prev_time = time.time()
         self.beat_power_history = deque(maxlen=self.beat_power_history_len)
 
     def update_config(self, config):
-        validated_config = self.CONFIG_SCHEMA(config)
+        validated_config = AUDIO_ANALYSIS_SCHEMA(config)
         super().update_config(validated_config)
         self.initialise_analysis()
 
@@ -729,7 +756,8 @@ class AudioAnalysisSource(AudioInputSource):
 
     @lru_cache(maxsize=None)
     def pitch(self):
-        # If our audio handler is returning null, then we just return 0 for midi_value and wait for the device starts sending audio.
+        # If our audio handler is returning null, then we just return 0 for midi_value and wait for the device
+        # starts sending audio.
         try:
             return self._pitch(self.audio_sample(raw=True))[0]
         except ValueError as e:
