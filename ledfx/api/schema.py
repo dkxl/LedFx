@@ -6,7 +6,7 @@ from aiohttp import web
 from ledfx.api import RestEndpoint
 from ledfx.api.utils import PERMITTED_KEYS, convertToJsonSchema
 from ledfx.config import CORE_CONFIG_SCHEMA, WLED_CONFIG_SCHEMA
-from ledfx.effects.audio import AudioAnalysisSource, AUDIO_CONFIG_SCHEMA
+from ledfx.effects.audio import AudioAnalysisSource, AUDIO_INPUT_SCHEMA
 from ledfx.effects.melbank import Melbank, Melbanks
 
 _LOGGER = logging.getLogger(__name__)
@@ -120,12 +120,12 @@ class SchemaEndpoint(RestEndpoint):
             elif schema == "audio":
                 # Get audio schema
                 audio_input_schema = convertToJsonSchema(
-                    AUDIO_CONFIG_SCHEMA.fget()
+                    AUDIO_INPUT_SCHEMA
                 )
                 audio_analysis_schema = convertToJsonSchema(
                     AudioAnalysisSource.CONFIG_SCHEMA
                 )
-                # drop the tempo method from the audio input schema
+                # drop the tempo method from the audio analysis schema
                 # TODO: figure out a better way to handle this in the frontend
                 # permitted_keys isn't working
                 del audio_analysis_schema["properties"]["tempo_method"]

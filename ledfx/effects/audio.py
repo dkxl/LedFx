@@ -146,7 +146,7 @@ class AudioDevices():
         }
 
 
-AUDIO_CONFIG_SCHEMA = vol.Schema(
+AUDIO_INPUT_SCHEMA = vol.Schema(
         {
             vol.Optional("sample_rate", default=60): int,
             vol.Optional("mic_rate", default=44100): int,
@@ -211,11 +211,11 @@ class AudioInputSource:
 
     def update_config(self, config):
         """Deactivate the audio, update the config, then reactivate"""
-        old_input_device = self._config.get("audio_device", None)
+        old_input_device = self._config.get("audio_device", None) if self._config else None
 
         if self._audio_stream_active:
             self.deactivate()
-        self._config = AUDIO_CONFIG_SCHEMA(config)
+        self._config = AUDIO_INPUT_SCHEMA(config)
         if len(self._callbacks) != 0:
             self.activate()
         if (
@@ -615,9 +615,16 @@ class AudioAnalysisSource(AudioInputSource):
         10000,
     ]
 
-    def __init__(self, ledfx, config):
+    def __init__(self, ledfx_instance, config):
+        """
+        Creates a new AudioAnalysisSource instance.
+        :param ledfx_instance: The ledfx instance to use
+        :type ledfx_instance: :class:`ledfx.core.led.Leddx`
+        :param config: The configuration dictionary
+        :type config: dict
+        """
         config = self.CONFIG_SCHEMA(config)
-        super().__init__(ledfx, config)
+        super().__init__(ledfx_instance, config)
         self.initialise_analysis()
 
         # Subscribe functions to be run on every frame of audio

@@ -5,7 +5,7 @@ from aiohttp import web
 
 from ledfx.api import RestEndpoint
 from ledfx.config import save_config
-from ledfx.effects.audio import AUDIO_CONFIG_SCHEMA, AudioDevices
+from ledfx.effects.audio import AUDIO_INPUT_SCHEMA, AudioDevices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class AudioDevicesEndpoint(RestEndpoint):
         Returns:
             web.Response: The response containing the list of audio devices and the active device index.
         """
-        audio_config = AUDIO_CONFIG_SCHEMA(
+        audio_config = AUDIO_INPUT_SCHEMA(
             self._ledfx.config.get("audio_device", {})
         )
 

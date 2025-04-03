@@ -16,7 +16,7 @@ from ledfx.config import (
     save_config,
 )
 from ledfx.consts import CONFIGURATION_VERSION
-from ledfx.effects.audio import AudioAnalysisSource, AUDIO_CONFIG_SCHEMA
+from ledfx.effects.audio import AudioAnalysisSource, AUDIO_INPUT_SCHEMA
 from ledfx.effects.melbank import Melbanks
 from ledfx.events import BaseConfigUpdateEvent
 
@@ -74,7 +74,7 @@ class ConfigEndpoint(RestEndpoint):
             config = self._ledfx.config.get(key)
 
             if key == "audio":
-                config = AUDIO_CONFIG_SCHEMA(config)
+                config = AUDIO_INPUT_SCHEMA(config)
             elif key == "melbanks":
                 config = Melbanks.CONFIG_SCHEMA(config)
             elif key == "wled_preferences":
@@ -136,7 +136,7 @@ class ConfigEndpoint(RestEndpoint):
             # so backup the old one
             create_backup(self._ledfx.config_dir, "IMPORT")
 
-            audio_config = AUDIO_CONFIG_SCHEMA.fget()(
+            audio_config = AUDIO_INPUT_SCHEMA(
                 config.pop("audio", {})
             )
             wled_config = WLED_CONFIG_SCHEMA(
@@ -185,7 +185,7 @@ class ConfigEndpoint(RestEndpoint):
         except JSONDecodeError:
             return await self.json_decode_error()
         except Exception as e:
-            return await self.generic_error(str(e))
+            return await self.internal_error(str(e))
 
         try:
             self.update_config(config)
@@ -226,7 +226,7 @@ class ConfigEndpoint(RestEndpoint):
 
         audio_config = validate_and_trim_config(
             audio_config,
-            AUDIO_CONFIG_SCHEMA.fget(),
+            AUDIO_INPUT_SCHEMA,
             "audio",
         )
 
