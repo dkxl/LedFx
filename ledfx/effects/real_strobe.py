@@ -5,7 +5,7 @@ import numpy as np
 import voluptuous as vol
 
 from ledfx.color import parse_color, validate_color, validate_gradient
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.gradient import GradientEffect
 
 

@@ -8,7 +8,7 @@ import voluptuous as vol
 from ledfx.color import parse_color
 from ledfx.config import save_config
 from ledfx.consts import PROJECT_VERSION
-from ledfx.effects.audio import AudioInputSource
+from ledfx.audio import AudioInputSource
 from ledfx.events import Event
 from ledfx.integrations import Integration
 

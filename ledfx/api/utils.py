@@ -5,7 +5,7 @@ import collections
 import voluptuous as vol
 
 from ledfx.config import _default_wled_settings
-from ledfx.effects.audio import AudioInputSource
+from ledfx.audio import available_audio_sources
 from ledfx.utils import AVAILABLE_FPS, generate_title
 
 TYPES_MAP = {
@@ -131,7 +131,7 @@ def convertToJsonSchema(schema):
         callable(schema)
         and getattr(schema, "__name__", None) == "device_index_validator"
     ):
-        return {"type": "string", "enum": AudioInputSource.input_devices()}
+        return {"type": "string", "enum": available_audio_sources()}
 
     elif (
         callable(schema)

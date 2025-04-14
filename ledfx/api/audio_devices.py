@@ -5,7 +5,7 @@ from aiohttp import web
 
 from ledfx.api import RestEndpoint
 from ledfx.config import save_config
-from ledfx.effects.audio import AudioInputSource
+from ledfx.audio import available_audio_sources
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,15 +24,10 @@ class AudioDevicesEndpoint(RestEndpoint):
         Returns:
             web.Response: The response containing the list of audio devices and the active device index.
         """
-        audio_config = AudioInputSource.AUDIO_CONFIG_SCHEMA.fget()(
-            self._ledfx.config.get("audio_device", {})
-        )
-
-        response = {}
-        response["active_device_index"] = audio_config["audio_device"]
-        response["devices"] = (
-            AudioInputSource.input_devices()
-        )  # dict(enumerate(input_devices))
+        response = {
+            "active_device_index": self._ledfx.audio.active_device_index(),
+            "devices": available_audio_sources()
+        }
         return await self.bare_request_success(response)
 
     async def put(self, request: web.Request) -> web.Response:
@@ -57,9 +52,7 @@ class AudioDevicesEndpoint(RestEndpoint):
                 "Required attribute 'index' was not provided"
             )
 
-        valid_indexes = AudioInputSource.valid_device_indexes()
-
-        if index not in valid_indexes:
+        if index not in available_audio_sources():
             return await self.invalid_request(
                 f"Invalid device index [{index}]"
             )

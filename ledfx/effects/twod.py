@@ -6,7 +6,7 @@ import voluptuous as vol
 from PIL import Image, ImageDraw, ImageEnhance
 
 from ledfx.effects import Effect
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.utils.logsec import LogSec
 
 _LOGGER = logging.getLogger(__name__)

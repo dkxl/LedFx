@@ -4,7 +4,7 @@ import numpy as np
 import voluptuous as vol
 
 from ledfx.color import parse_color, validate_color
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.droplets import DROPLET_NAMES, load_droplet
 
 

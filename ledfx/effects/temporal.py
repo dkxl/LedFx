@@ -1,7 +1,7 @@
 import logging
 import time
 
-# from ledfx.effects.audio import AudioReactiveEffect
+# from ledfx.audio import AudioReactiveEffect
 from threading import Thread
 
 import voluptuous as vol

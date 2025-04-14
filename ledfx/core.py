@@ -52,6 +52,8 @@ from ledfx.utils import (
     shape_to_fit_len,
 )
 from ledfx.virtuals import Virtuals
+from ledfx.audio import AudioInputSource
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -399,6 +401,8 @@ class LedFxCore:
             validate_gradient,
             parse_gradient,
         )
+        self.audio = AudioInputSource(self, self.config["audio"])
+
 
         # TODO: Deferr
         self.devices.create_from_config(self.config["devices"])

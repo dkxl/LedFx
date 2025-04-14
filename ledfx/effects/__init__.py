@@ -1,7 +1,7 @@
 import logging
 import threading
 
-# from ledfx.effects.audio import FREQUENCY_RANGES
+# from ledfx.audio import FREQUENCY_RANGES
 from functools import lru_cache
 
 import numpy as np

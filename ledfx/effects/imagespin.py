@@ -5,7 +5,7 @@ import voluptuous as vol
 from PIL import Image
 
 from ledfx.consts import LEDFX_ASSETS_PATH
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.twod import Twod
 from ledfx.utils import get_icon_path, open_gif
 

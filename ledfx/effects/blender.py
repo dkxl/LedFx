@@ -4,7 +4,7 @@ import numpy as np
 import voluptuous as vol
 from PIL import Image, ImageOps
 
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.utils.logsec import LogSec
 
 _LOGGER = logging.getLogger(__name__)

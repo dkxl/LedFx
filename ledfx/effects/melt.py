@@ -3,7 +3,7 @@ import time
 import numpy as np
 import voluptuous as vol
 
-from ledfx.effects.audio import AudioReactiveEffect
+from ledfx.audio import AudioReactiveEffect
 from ledfx.effects.hsv_effect import HSVEffect
 
 

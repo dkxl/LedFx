@@ -6,7 +6,6 @@ from aiohttp import web
 from ledfx.api import RestEndpoint
 from ledfx.api.utils import PERMITTED_KEYS, convertToJsonSchema
 from ledfx.config import CORE_CONFIG_SCHEMA, WLED_CONFIG_SCHEMA
-from ledfx.effects.audio import AudioAnalysisSource, AudioInputSource
 from ledfx.effects.melbank import Melbank, Melbanks
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,33 +117,12 @@ class SchemaEndpoint(RestEndpoint):
                 }
 
             elif schema == "audio":
-                # Get audio schema
-                audio_input_schema = convertToJsonSchema(
-                    AudioInputSource.AUDIO_CONFIG_SCHEMA.fget()
-                )
-                audio_analysis_schema = convertToJsonSchema(
-                    AudioAnalysisSource.CONFIG_SCHEMA
-                )
-                # drop the tempo method from the audio input schema
-                # TODO: figure out a better way to handle this in the frontend
-                # permitted_keys isn't working
-                del audio_analysis_schema["properties"]["tempo_method"]
-                merged_schema = {**audio_input_schema, **audio_analysis_schema}
-
-                for key in (
-                    audio_input_schema.keys() & audio_analysis_schema.keys()
-                ):
-                    if isinstance(
-                        audio_input_schema[key], dict
-                    ) and isinstance(audio_analysis_schema[key], dict):
-                        merged_schema[key] = {
-                            **audio_input_schema[key],
-                            **audio_analysis_schema[key],
-                        }
-
+                # Get audio schema for the active audio source
                 response["audio"] = {
                     "schema": {
-                        **merged_schema,
+                        **convertToJsonSchema(
+                            self._ledfx.audio.active_audio_schema(),
+                        ),
                         **{"permitted_keys": PERMITTED_KEYS["audio"]},
                     }
                 }
