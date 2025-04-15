@@ -11,9 +11,6 @@ from .analysis import AudioAnalysisSource
 
 _LOGGER = logging.getLogger(__name__)
 
-MIN_MIDI = 21
-MAX_MIDI = 108
-
 
 @Effect.no_registration
 class AudioReactiveEffect(Effect):
