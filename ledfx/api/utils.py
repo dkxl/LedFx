@@ -21,6 +21,7 @@ PERMITTED_KEYS = {
     "audio": (
         "min_volume",
         "audio_device",
+        "audio_channel",
         "delay_ms",
         "pitch_method",
         "onset_method",
@@ -127,31 +128,31 @@ def convertToJsonSchema(schema):
     ):
         return {"type": "int", "enum": list(AVAILABLE_FPS)}
 
-    elif (
+    if (
         callable(schema)
         and getattr(schema, "__name__", None) == "device_index_validator"
     ):
         return {"type": "string", "enum": available_audio_sources()}
 
-    elif (
+    if (
         callable(schema)
         and getattr(schema, "__name__", None) == "validate_color"
     ):
         return {"type": "color", "gradient": False}
 
-    elif (
+    if (
         callable(schema)
         and getattr(schema, "__name__", None) == "validate_gradient"
     ):
         return {"type": "color", "gradient": True}
 
-    elif isinstance(schema, vol.All):
+    if isinstance(schema, vol.All):
         val = {}
         for validator in schema.validators:
             val.update(convertToJsonSchema(validator))
         return val
 
-    elif isinstance(schema, vol.Length):
+    if isinstance(schema, vol.Length):
         val = {}
         if schema.min is not None:
             val["minLength"] = schema.min
@@ -159,7 +160,7 @@ def convertToJsonSchema(schema):
             val["maxLength"] = schema.max
         return val
 
-    elif isinstance(schema, (vol.Clamp, vol.Range)):
+    if isinstance(schema, (vol.Clamp, vol.Range)):
         val = {}
         if schema.min is not None:
             val["minimum"] = schema.min
@@ -167,23 +168,22 @@ def convertToJsonSchema(schema):
             val["maximum"] = schema.max
         return val
 
-    elif isinstance(schema, vol.Datetime):
+    if isinstance(schema, vol.Datetime):
         return {
             "type": "datetime",
             "format": schema.format,
         }
 
-    elif isinstance(schema, vol.In):
+    if isinstance(schema, vol.In):
         if isinstance(schema.container, dict):
             return {"type": "string", "enum": dict(schema.container)}
-        else:
-            return {"type": "string", "enum": list(schema.container)}
+        return {"type": "string", "enum": list(schema.container)}
         # val = {'type': 'string', 'enum': dict()}
         # for item in schema.container:
         #     val['enum'][item] = item
         # return val
 
-    elif isinstance(schema, vol.Coerce):
+    if isinstance(schema, vol.Coerce):
         schema = schema.type
 
     elif isinstance(schema, list):
