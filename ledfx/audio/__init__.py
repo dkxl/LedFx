@@ -2,7 +2,7 @@
 Module for handling local and remote audio input sources and audio analysis
 Exposes base classes for Audio Reactive effects
 """
-from .sources import AudioInputSource, available_audio_sources
+from .sources import AudioInputSource
 from .analysis import AudioAnalysisSource
 from .effects import AudioReactiveEffect
 
