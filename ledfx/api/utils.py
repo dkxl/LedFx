@@ -130,12 +130,6 @@ def convertToJsonSchema(schema):
 
     if (
         callable(schema)
-        and getattr(schema, "__name__", None) == "device_index_validator"
-    ):
-        return {"type": "string", "enum": available_audio_sources()}
-
-    if (
-        callable(schema)
         and getattr(schema, "__name__", None) == "validate_color"
     ):
         return {"type": "color", "gradient": False}
