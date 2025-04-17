@@ -6,6 +6,7 @@ import voluptuous as vol
 
 from ledfx.config import _default_wled_settings
 from ledfx.utils import AVAILABLE_FPS, generate_title
+from ledfx.audio.schema import PERMITTED_AUDIO_KEYS
 
 TYPES_MAP = {
     int: "integer",
@@ -17,15 +18,7 @@ TYPES_MAP = {
 }
 
 PERMITTED_KEYS = {
-    "audio": (
-        "min_volume",
-        "audio_device",
-        "audio_channel",
-        "delay_ms",
-        "pitch_method",
-        "onset_method",
-        "pitch_tolerance",
-    ),
+    "audio": PERMITTED_AUDIO_KEYS,
     "melbanks": (
         "max_frequencies",
         "min_frequency",

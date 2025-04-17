@@ -1,213 +1,27 @@
 import logging
 import queue
 import threading
-
 import aubio
 import numpy as np
 import samplerate
 import sounddevice as sd
-import voluptuous as vol
 
 import ledfx.api.websocket
-from ledfx.api.websocket import WEB_AUDIO_CLIENTS, WebAudioStream
+from ledfx.api.websocket import WebAudioStream
 from ledfx.effects.math import ExpFilter
-from ledfx.effects.melbank import FFT_SIZE, MIC_RATE
+from ledfx.effects.melbank import MIC_RATE
 from ledfx.events import AudioDeviceChangeEvent, Event
 
+from .schema import refresh_audio_schema, available_audio_devices, default_audio_device, WEB_AUDIO_NAME
+
+
 _LOGGER = logging.getLogger(__name__)
-
-
-WEB_AUDIO_API_NAME = 'WEB AUDIO'
-
-# https://aubio.org/doc/latest/pitch_8h.html
-PITCH_METHODS = [
-    "yinfft",
-    "yin",
-    "yinfast",
-    # mcomb and fcomb appears to just explode something deeep in the aubio code, no logs, no errors, it just dies.
-    # "mcomb",
-    # "fcomb",
-    "schmitt",
-    "specacf",
-]
-# https://aubio.org/doc/latest/specdesc_8h.html
-ONSET_METHODS = [
-    "energy",
-    "hfc",
-    "complex",
-    "phase",
-    "wphase",
-    "specdiff",
-    "kl",
-    "mkl",
-    "specflux",
-]
-
-TEMPO_METHODS = [
-    "default",  # only one method so far
-]
-
-
-def _audio_config_schema(running_config=None):
-    """Returns the audio config schema for the current available audio devices"""
-
-    available_devices = {
-        idx: f"{device['hostapi_name']}: {device['name']}"
-        for idx, device in _available_audio_devices().items()
-    }
-
-    return vol.Schema(
-        {
-            vol.Optional(
-                "audio_device",
-                default=_default_device_index()
-            ): vol.In(available_devices),
-            vol.Optional(
-                "audio_channel",
-                default=0
-            ): vol.All(vol.Coerce(int), vol.In(_available_audio_channels(running_config))),
-            vol.Optional("sample_rate", default=60): int,
-            vol.Optional("mic_rate", default=44100): int,
-            vol.Optional("fft_size", default=FFT_SIZE): int,
-            vol.Optional("min_volume", default=0.2): vol.All(
-                vol.Coerce(float), vol.Range(min=0.0, max=1.0)
-            ),
-            vol.Optional(
-                "delay_ms",
-                default=0,
-                description="Add a delay to LedFx's output to sync with your audio. Useful for Bluetooth devices which typically have a short audio lag.",
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=5000)),
-            vol.Optional(
-                "pitch_method",
-                default="yinfft",
-                description="Method to detect pitch",
-            ): vol.In(PITCH_METHODS),
-            vol.Optional(
-                "tempo_method",
-                default="default"
-            ): vol.In(TEMPO_METHODS),
-            vol.Optional(
-                "onset_method",
-                default="hfc",
-                description="Method used to detect onsets",
-            ): vol.In(ONSET_METHODS),
-            vol.Optional(
-                "pitch_tolerance",
-                default=0.8,
-                description="Pitch detection tolerance",
-            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2)),
-        },
-        extra=vol.ALLOW_EXTRA,
-    )
-
-
-def _available_audio_devices():
-    """
-    Returns a dict of audio device attributes, keyed by device index.
-    Ignores devices with no input channels.
-    Ignored ASIO devices (legacy compatibility - why?).
-    Local devices are now keyed by device name, not just by the position within the query results, so that the selected
-    device should not change if devices are added or removed between restarts.
-    Remote devices are now keyed by client name.
-    """
-    _LOGGER.debug('Refreshing available audio devices')
-    available_devices = {}
-
-    for device in sd.query_devices():
-        index = device["index"]
-        if device["max_input_channels"] == 0 or "asio" in device["name"].lower():
-            continue
-        device["hostapi_name"] = sd.query_hostapis(device["hostapi"])["name"]
-        available_devices[index] = device
-
-    for client in WEB_AUDIO_CLIENTS:
-        index = client["name"]
-        available_devices[index] = {
-            "hostapi_name": WEB_AUDIO_API_NAME,
-            "name": f"{client}",
-            "max_input_channels": 1,
-            "client": client,
-        }
-
-    return available_devices
-
-
-# def _available_audio_sources() -> dict:
-#     """
-#     Returns a dict of available devices for use by the API config schema
-#         {idx: device_description}
-#     The idx can be used to get full device details from query_devices()[idx]
-#     """
-#     return {idx: f"{device['hostapi_name']}: {device['name']}" for idx, device in _available_audio_devices().items()}
-
-
-def _available_audio_channels(running_config) -> list:
-    """Returns a list of the available audio channels for the current active sound device"""
-    _LOGGER.debug('Refreshing available audio channels')
-    if running_config is None:
-        return [0]  # use the default channel
-
-    active_device_idx = running_config.get("audio_device")
-    if active_device_idx is None:
-        return [0]
-
-    active_device = _available_audio_devices().get('active_device_idx')
-    if active_device is not None:
-        return list(range(active_device["max_input_channels"]))
-
-    _LOGGER.warning('Unable to determine how many audio channels are available on the active audio device.')
-    return [0]   # should never get here...
-
-
-def _default_device_index():
-    """
-    Returns the default device index to use for audio input
-    In order of preference:
-     - the first available loopback device
-     - the default local sounddevice, if available
-     - the first available Web Audio client
-    Returns None if no input devices available.
-    @returns: int | None
-    """
-    # The default input device index is not always valid (i.e no default input devices)
-    available_devices = _available_audio_devices()
-
-    if len(available_devices) == 0:
-        _LOGGER.warning(
-            "No valid audio input devices found. Unable to use audio reactive effects."
-        )
-        return None
-
-    for device_index, device in available_devices.items():
-        if "loopback" in device["name"].lower():
-            _LOGGER.debug(
-                "Setting audio loopback device %s as default input device",
-                device["name"],
-            )
-            return device_index
-
-    default_input_device_idx = sd.default.device["input"]
-    if default_input_device_idx in available_devices:
-        _LOGGER.debug(
-            "Setting local default %s as default input device",
-            available_devices[default_input_device_idx]['name']
-        )
-        return default_input_device_idx
-
-    # Return the first valid input device index if we can't find a valid local input device
-    first_valid_idx = next(iter(available_devices))
-    _LOGGER.debug(
-        "Setting %s as default input device",
-        available_devices[first_valid_idx]
-    )
-    return first_valid_idx
 
 
 class AudioInputSource:
     _audio_stream_active = False
     _audio = None
     _stream = None
-    _callbacks = []
     _audioWindowSize = 4
     _processed_audio_sample = None
     _volume = -90
@@ -218,10 +32,11 @@ class AudioInputSource:
     def __init__(self, ledfx_instance, config):
         self._ledfx = ledfx_instance
         self._config = config
-        self._active_device_index = None
+        self._active_device = None
         self.lock = threading.Lock()
-        # We must not inherit legacy _callbacks from prior instances
         self._callbacks = []
+
+        self._prepare_filters()
         self.update_config(config)
 
         def shutdown_event(e):
@@ -235,11 +50,11 @@ class AudioInputSource:
 
     def active_audio_schema(self):
         """Returns the config schema for the active sound device"""
-        return _audio_config_schema(self._ledfx.config)
+        return refresh_audio_schema(self._ledfx.config)
 
     def active_device_index(self):
         """Returns the active audio device index"""
-        return self._active_device_index
+        return self._active_device
 
     def update_config(self, config):
         """Deactivate the audio, update the config, the reactivate"""
@@ -261,8 +76,7 @@ class AudioInputSource:
             self._ledfx.events.fire_event(
                 AudioDeviceChangeEvent(
                     # TODO: who subscribes to this event? Do they need the device attributes or just the device name?
-                    #_available_audio_sources()[self._config["audio_device"]]
-                    _available_audio_devices()[self._config["audio_device"]]
+                    available_audio_devices()[self._config["audio_device"]]
                 )
             )
         self._ledfx.config["audio"] = self._config
@@ -277,7 +91,7 @@ class AudioInputSource:
                 self._ledfx.stop()
 
         # Check the available input devices - the configured device may have been removed
-        available_devices = _available_audio_devices()
+        available_devices = available_audio_devices()
 
         if not available_devices:
             _LOGGER.warning(
@@ -290,23 +104,32 @@ class AudioInputSource:
         _LOGGER.debug("Available audio input devices:")
         for index, device in available_devices.items():
             _LOGGER.debug(
-                "Audio Device %s{index}\t{hostapi_name}\t{device_name}\tinput_channels: {input_channels}",
-                index, device["hostapi_name"], device["name"], device["input_channels"]
+                "%s\tchannels: %s",
+                index, device["max_input_channels"]
             )
         _LOGGER.debug("********************************************")
 
-        device_idx = self._config["audio_device"]
-        default_device = _default_device_index()
-
-        _LOGGER.debug(
-            f"default_device: {available_devices[default_device]} config_device: {available_devices[device_idx]}"
-        )
-        if device_idx not in available_devices:
+        if self._config["audio_device"] in available_devices:
+            new_audio_device = available_devices[self._config["audio_device"]]
+        else:
+            new_audio_device = default_audio_device()
             _LOGGER.warning(
-                "Requested audio device not available, reverting to default input device"
+                "Requested audio device %s not available, reverting to default input device %s",
+                self._config["audio_device"], new_audio_device['name'],
             )
-            device_idx = default_device
 
+        try:
+            self._open_audio_stream(new_audio_device)
+            self._active_device = new_audio_device
+        except (sd.PortAudioError, OSError) as err:
+            _LOGGER.critical(
+                "Unable to open Audio Device %s: %s - please retry",
+                new_audio_device['name'], err
+            )
+            self.deactivate()
+
+    def _prepare_filters(self):
+        """Configure audio filters"""
         # Setup a pre-emphasis filter to balance the input volume of lows to highs
         self.pre_emphasis = aubio.digital_filter(3)
         # depending on the coeffs type, we need to use different pre_emphasis values to make em work better. allegedly.
@@ -355,15 +178,6 @@ class AudioInputSource:
         else:
             self.delay_queue = None
 
-        try:
-            self._open_audio_stream(available_devices[device_idx])
-            self._active_device_index = device_idx
-        except (sd.PortAudioError, OSError) as err:
-            _LOGGER.critical(
-                "Unable to open Audio Device: %s - please retry", repr(err)
-            )
-            self.deactivate()
-
     def _open_audio_stream(self, device):
         """
         Opens an audio stream for the specified input device.
@@ -378,8 +192,8 @@ class AudioInputSource:
         - Starts the audio stream and sets the audio stream active flag to True.
         """
 
-        if "Windows WASAPI" in device.get('hostapi_name') and "loopback" in device['name'].lower():
-            _LOGGER.info("Windows Loopback device detected: %s", device['name'])
+        if "WASAPI" in device.get('hostapi_name') and "loopback" in device['name'].lower():
+            _LOGGER.info("WASAPI Loopback device detected: %s", device['name'])
             mono = False
         else:
             # if not using a Windows loopback device, downmix to mono
@@ -387,7 +201,7 @@ class AudioInputSource:
             # this is similar to the long standing prior implementation
             mono = True
 
-        if device.get('hostapi_name') == WEB_AUDIO_API_NAME:
+        if device.get('hostapi_name') == WEB_AUDIO_NAME:
             ledfx.api.websocket.ACTIVE_AUDIO_STREAM = self._stream = (
                 WebAudioStream(
                     device["client"], self._audio_sample_callback
@@ -414,7 +228,6 @@ class AudioInputSource:
         self._stream.start()
         self._audio_stream_active = True
 
-
     def deactivate(self):
         with self.lock:
             if self._stream:
@@ -422,7 +235,7 @@ class AudioInputSource:
                 self._stream.close()
                 self._stream = None
             self._audio_stream_active = False
-            self._active_device_index = None
+            self._active_device = None
         _LOGGER.info("Audio source closed.")
 
     def subscribe(self, callback):
