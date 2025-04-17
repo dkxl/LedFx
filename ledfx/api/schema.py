@@ -7,6 +7,7 @@ from ledfx.api import RestEndpoint
 from ledfx.api.utils import PERMITTED_KEYS, convertToJsonSchema
 from ledfx.config import CORE_CONFIG_SCHEMA, WLED_CONFIG_SCHEMA
 from ledfx.effects.melbank import Melbank, Melbanks
+from ledfx.audio import refresh_audio_schema
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,11 +118,12 @@ class SchemaEndpoint(RestEndpoint):
                 }
 
             elif schema == "audio":
-                # Get audio schema for the active audio source
+                # Get audio schema for the active configuration
+                running_config = self._ledfx.config.get("audio")
                 response["audio"] = {
                     "schema": {
                         **convertToJsonSchema(
-                            self._ledfx.audio.active_audio_schema(),
+                            refresh_audio_schema(running_config),
                         ),
                         **{"permitted_keys": PERMITTED_KEYS["audio"]},
                     }
