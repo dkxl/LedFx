@@ -12,7 +12,7 @@ from ledfx.effects.math import ExpFilter
 from ledfx.effects.melbank import MIC_RATE
 from ledfx.events import AudioDeviceChangeEvent, Event
 
-from .schema import (refresh_audio_schema, available_audio_devices, default_audio_device,
+from .schema import (refresh_audio_schema, available_audio_device_details, default_audio_device_details,
                      WEB_AUDIO_NAME, format_device_index)
 
 
@@ -77,7 +77,7 @@ class AudioInputSource:
             self._ledfx.events.fire_event(
                 AudioDeviceChangeEvent(
                     # TODO: who subscribes to this event? Do they need the device attributes or just the device name?
-                    available_audio_devices()[self._config["audio_device"]]
+                    available_audio_device_details()[self._config["audio_device"]]
                 )
             )
         self._ledfx.config["audio"] = self._config
@@ -92,7 +92,7 @@ class AudioInputSource:
                 self._ledfx.stop()
 
         # Check the available input devices - the configured device may have been removed
-        available_devices = available_audio_devices()
+        available_devices = available_audio_device_details()
 
         if not available_devices:
             _LOGGER.warning(
@@ -113,7 +113,7 @@ class AudioInputSource:
         if self._config["audio_device"] in available_devices:
             new_audio_device = available_devices[self._config["audio_device"]]
         else:
-            new_audio_device = default_audio_device()
+            new_audio_device = default_audio_device_details()
             _LOGGER.warning(
                 "Requested audio device %s not available, reverting to default input device %s",
                 self._config["audio_device"], new_audio_device['name'],

@@ -59,6 +59,19 @@ TEMPO_METHODS = [
 ]
 
 
+def available_audio_devices() -> dict:
+    """
+    Returns a dict with all available audio devices.
+    Keyed by 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
+    """
+    return {k: format_device_index(device) for k, device in available_audio_device_details().items()}
+
+
+def _default_audio_device_index() -> str:
+    """Returns the index of the default audio device"""
+    return format_device_index(default_audio_device_details())
+
+
 def format_device_index(device: dict) -> str:
     """
     Formats the index that will be used to identify the audio device within the UI and the schema.
@@ -72,15 +85,12 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
     """
     Returns the audio config schema for the current available audio devices
     """
-    available_devices = available_audio_devices().keys()
-    default_device = format_device_index(default_audio_device())
-
     return vol.Schema(
         {
             vol.Optional(
                 "audio_device",
-                default=default_device,
-            ): vol.Any(vol.In(available_devices), vol.SetTo(default_device)),
+                default=_default_audio_device_index(),
+            ): vol.Any(vol.In(available_audio_devices()), vol.SetTo(_default_audio_device_index())),
             vol.Optional(
                 "audio_channel",
                 default=0
@@ -121,7 +131,7 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
     )
 
 
-def available_audio_devices() -> dict:
+def available_audio_device_details() -> dict:
     """
     Returns a dict of audio device attributes, keyed by device index.
     Ignores devices with no input channels.
@@ -161,7 +171,7 @@ def available_audio_channels(running_config) -> list:
     if active_device_idx is None:
         return [0]
 
-    active_device = available_audio_devices().get(active_device_idx)
+    active_device = available_audio_device_details().get(active_device_idx)
     if active_device is not None:
         return list(range(active_device["max_input_channels"]))
 
@@ -169,7 +179,7 @@ def available_audio_channels(running_config) -> list:
     return [0]   # should never get here...
 
 
-def default_audio_device() -> dict:
+def default_audio_device_details() -> dict:
     """
     Returns a dict with attributes for the default device to use for audio input
     In order of preference:
@@ -178,7 +188,7 @@ def default_audio_device() -> dict:
      - the first available Web Audio client
     """
     # The default input device index is not always valid (i.e no default input devices)
-    available_devices = available_audio_devices()
+    available_devices = available_audio_device_details()
 
     if len(available_devices) == 0:
         _LOGGER.warning(

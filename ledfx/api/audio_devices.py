@@ -33,7 +33,7 @@ class AudioDevicesEndpoint(RestEndpoint):
 
         response = {
             "active_device_index": active_device_index,
-            "devices": list(available_audio_devices())
+            "devices": available_audio_devices()
         }
         return await self.bare_request_success(response)
 
