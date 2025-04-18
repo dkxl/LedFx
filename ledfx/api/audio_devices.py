@@ -5,8 +5,7 @@ from aiohttp import web
 
 from ledfx.api import RestEndpoint
 from ledfx.config import save_config
-from ledfx.api.utils import convertToJsonSchema
-from ledfx.audio import refresh_audio_schema
+from ledfx.audio import available_audio_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,10 +26,14 @@ class AudioDevicesEndpoint(RestEndpoint):
         Returns:
             web.Response: The response containing the list of audio devices and the active device index.
         """
-        _schema = convertToJsonSchema(refresh_audio_schema())
+        try:
+            active_device_index = self._ledfx.audio.active_device_index()
+        except (AttributeError, KeyError):
+            active_device_index = None
+
         response = {
-            "active_device_index": self._ledfx.audio.active_device_index() if self._ledfx.get('audio') else 0,
-            "devices": _schema.get('audio_device')
+            "active_device_index": active_device_index,
+            "devices": list(available_audio_devices())
         }
         return await self.bare_request_success(response)
 
@@ -50,29 +53,31 @@ class AudioDevicesEndpoint(RestEndpoint):
         except JSONDecodeError:
             return await self.json_decode_error()
 
-        index = data.get("index")
-        if index is None:
-            return await self.invalid_request(
-                "Required attribute 'index' was not provided"
+        try:
+            index = data.get("index")
+            if index is None:
+                return await self.invalid_request(
+                    "Required attribute 'index' was not provided"
+                )
+
+            if index not in available_audio_devices():
+                return await self.invalid_request(
+                    f"Invalid device index [{index}]"
+                )
+
+            # Update and save config
+            new_config = self._ledfx.config.get("audio", {})
+            new_config["device_index"] = int(index)
+            self._ledfx.config["audio"] = new_config
+
+            save_config(
+                config=self._ledfx.config,
+                config_dir=self._ledfx.config_dir,
             )
 
-        _schema = convertToJsonSchema(refresh_audio_schema())
-        if index not in _schema['audio_device']:
-            return await self.invalid_request(
-                f"Invalid device index [{index}]"
-            )
-
-        # Update and save config
-        new_config = self._ledfx.config.get("audio", {})
-        new_config["device_index"] = int(index)
-        self._ledfx.config["audio"] = new_config
-
-        save_config(
-            config=self._ledfx.config,
-            config_dir=self._ledfx.config_dir,
-        )
-
-        if self._ledfx.audio:
             self._ledfx.audio.update_config(new_config)
 
-        await self.request_success()
+            await self.request_success()
+
+        except Exception as e:
+            return await self.internal_error(str(e))

@@ -59,7 +59,7 @@ TEMPO_METHODS = [
 ]
 
 
-def _format_device_index(device: dict) -> str:
+def format_device_index(device: dict) -> str:
     """
     Formats the index that will be used to identify the audio device within the UI and the schema.
     Now uses 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
@@ -73,7 +73,7 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
     Returns the audio config schema for the current available audio devices
     """
     available_devices = available_audio_devices().keys()
-    default_device = _format_device_index(default_audio_device())
+    default_device = format_device_index(default_audio_device())
 
     return vol.Schema(
         {
@@ -135,7 +135,7 @@ def available_audio_devices() -> dict:
         if device["max_input_channels"] == 0 or "asio" in device["name"].lower():
             continue
         device["hostapi_name"] = sd.query_hostapis(device["hostapi"])["name"]
-        index = _format_device_index(device)
+        index = format_device_index(device)
         available_devices[index] = device
 
     for client in WEB_AUDIO_CLIENTS:
@@ -145,7 +145,7 @@ def available_audio_devices() -> dict:
             "max_input_channels": 1,
             "client": client,
         }
-        index = _format_device_index(client)
+        index = format_device_index(client)
         available_devices[index] = device
 
     return available_devices
