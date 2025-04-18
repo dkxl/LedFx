@@ -13,7 +13,7 @@ from ledfx.effects.melbank import MIC_RATE
 from ledfx.events import AudioDeviceChangeEvent, Event
 
 from .schema import (refresh_audio_schema, available_audio_device_details, default_audio_device_details,
-                     WEB_AUDIO_NAME, format_device_key)
+                     WEB_AUDIO_NAME)
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class AudioInputSource:
 
     def active_device_index(self):
         """Returns the active audio device index"""
-        return format_device_key(self._active_device)
+        return self._active_device['index']
 
     def update_config(self, config):
         """Deactivate the audio, update the config, the reactivate"""

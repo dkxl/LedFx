@@ -140,7 +140,7 @@ def convertToJsonSchema(schema):
         return val
 
     if isinstance(schema, vol.SetTo):
-        # schema default sets the value if None was supplied
+        # schema.default only sets the value if None was supplied
         # vol.SetTo allows invalid values to be replaced with a default value.
         return {
             "default": schema.value,

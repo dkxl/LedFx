@@ -29,6 +29,10 @@ PERMITTED_AUDIO_KEYS = (
 # Hostapi name used for Web Audio sources
 WEB_AUDIO_NAME = 'WEB AUDIO'
 
+# Starting number to use when spoofing PortAudio device indexes for Web Audio Clients
+WEB_AUDIO_BASE_INDEX = 100
+
+
 # https://aubio.org/doc/latest/pitch_8h.html
 PITCH_METHODS = [
     "yinfft",
@@ -61,22 +65,19 @@ TEMPO_METHODS = [
 
 def available_audio_devices() -> dict:
     """
-    Returns a dict with all available audio devices.
-    Keyed by 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
+    Returns a dict with names of the available audio devices, for use by the schema.
+    Use available_audio_device_details() if you need to work with the device attributes.
+    Local devices are keyed by PortAudio index so their indexes should not change if audio devices are added or removed
+    Web Audio devices are keyed using a spoofed PortAudio index, and may change.
     """
-    return {k: format_device_key(device) for k, device in available_audio_device_details().items()}
+    # return {k: format_device_name(device) for k, device in available_audio_device_details().items()}
+    return {device['index']: format_device_name(device) for device in available_audio_device_details().values()}
 
 
-def _default_audio_device_key() -> str:
-    """Returns the key of the default audio device"""
-    return format_device_key(default_audio_device_details())
-
-
-def format_device_key(device: dict) -> str:
+def format_device_name(device: dict) -> str:
     """
-    Formats the key that will be used to identify the audio device within the UI and the schema.
-    Now uses 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
-    The colon seperator is to retain compatibility with the front end UI, which groups devices by hostapi
+    Formats the name of the audio device for use within the UI and the schema.
+    Uses 'hostapi name: device name' to retain compatibility with the front end UI, which groups devices by hostapi
     """
     return f"{device['hostapi_name']}: {device['name']}"
 
@@ -85,16 +86,18 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
     """
     Returns the audio config schema for the current available audio devices
     """
+    default_device_index = default_audio_device_details()['index']
+
     return vol.Schema(
         {
             vol.Optional(
                 "audio_device",
-                default=_default_audio_device_key(),
-            ): vol.Any(vol.In(available_audio_devices()), vol.SetTo(_default_audio_device_key())),
+                default=default_device_index
+            ): vol.Any(vol.In(available_audio_devices()), vol.SetTo(default_device_index)),
             vol.Optional(
                 "audio_channel",
                 default=0
-            ): vol.All(vol.Coerce(int), vol.In(available_audio_channels(running_config))),
+            ): vol.Any(vol.In(available_audio_channels(running_config)), vol.SetTo(0)),
             vol.Optional("sample_rate", default=60): int,
             vol.Optional("mic_rate", default=44100): int,
             vol.Optional("fft_size", default=FFT_SIZE): int,
@@ -145,17 +148,20 @@ def available_audio_device_details() -> dict:
         if device["max_input_channels"] == 0 or "asio" in device["name"].lower():
             continue
         device["hostapi_name"] = sd.query_hostapis(device["hostapi"])["name"]
-        index = format_device_key(device)
+        # index = format_device_name(device)
+        index = device["index"]   # Use the PortAudio index
         available_devices[index] = device
 
-    for client in WEB_AUDIO_CLIENTS:
+    # Note: WEB_AUDIO_CLIENTS is a set. Sorting helps make things deterministic,
+    # but the calculated client indexes will still change if a client is added or removed.
+    for idx, client in enumerate(sorted(WEB_AUDIO_CLIENTS)):
         device = {
             "hostapi_name": WEB_AUDIO_NAME,
             "name": f"{client}",
             "max_input_channels": 1,
             "client": client,
         }
-        index = format_device_key(client)
+        index = WEB_AUDIO_BASE_INDEX + idx
         available_devices[index] = device
 
     return available_devices
@@ -205,12 +211,13 @@ def default_audio_device_details() -> dict:
             return device
 
     default_input_device_idx = sd.default.device["input"]
-    if default_input_device_idx in available_devices:
-        _LOGGER.debug(
-            "Setting local default %s as default input device",
-            available_devices[default_input_device_idx]['name']
-        )
-        return available_devices[default_input_device_idx]
+    for device in available_devices.values():
+        if device['index'] == default_input_device_idx:
+            _LOGGER.debug(
+                "Setting local default %s as default input device",
+                device['name']
+            )
+            return device
 
     # Return the first valid input device if we can't find a valid local input device
     first_valid_idx = next(iter(available_devices))
