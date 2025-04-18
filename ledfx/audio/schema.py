@@ -80,7 +80,7 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
             vol.Optional(
                 "audio_device",
                 default=default_device,
-            ): vol.In(available_devices),
+            ): vol.Any(vol.In(available_devices), vol.SetTo(default_device)),
             vol.Optional(
                 "audio_channel",
                 default=0
@@ -161,7 +161,7 @@ def available_audio_channels(running_config) -> list:
     if active_device_idx is None:
         return [0]
 
-    active_device = available_audio_devices().get('active_device_idx')
+    active_device = available_audio_devices().get(active_device_idx)
     if active_device is not None:
         return list(range(active_device["max_input_channels"]))
 

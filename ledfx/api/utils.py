@@ -132,11 +132,19 @@ def convertToJsonSchema(schema):
     ):
         return {"type": "color", "gradient": True}
 
-    if isinstance(schema, vol.All):
+    if isinstance(schema, (vol.All, vol.Any)):
+        # include all the valid values
         val = {}
         for validator in schema.validators:
             val.update(convertToJsonSchema(validator))
         return val
+
+    if isinstance(schema, vol.SetTo):
+        # schema default sets the value if None was supplied
+        # vol.SetTo allows invalid values to be replaced with a default value.
+        return {
+            "default": schema.value,
+        }
 
     if isinstance(schema, vol.Length):
         val = {}
