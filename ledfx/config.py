@@ -10,7 +10,6 @@ from pkg_resources import parse_version
 
 from ledfx.consts import CONFIGURATION_VERSION
 
-
 CONFIG_DIRECTORY = ".ledfx"
 CONFIG_FILE_NAME = "config.json"
 PRESETS_FILE_NAME = "presets.json"
@@ -496,7 +495,6 @@ def migrate_config(old_config):
     import voluptuous as vol
 
     from ledfx.effects import Effects
-    from ledfx.audio import available_audio_devices, default_audio_device
 
     effects = Effects(DummyLedfx()).classes()
 
@@ -579,10 +577,6 @@ def migrate_config(old_config):
     # if not using new config "audio_device", delete audio config
     if not old_config.get("audio", {}).get("audio_device", None):
         new_config.pop("audio", None)
-
-    # if audio_device not found, use the default audio device
-    if new_config.get("audio") and new_config["audio"].get("audio_device") not in available_audio_devices():
-        new_config["audio"]["audio_device"] = default_audio_device()
 
     # remove old transition things
     new_config.pop("crossfade", None)
