@@ -64,17 +64,17 @@ def available_audio_devices() -> dict:
     Returns a dict with all available audio devices.
     Keyed by 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
     """
-    return {k: format_device_index(device) for k, device in available_audio_device_details().items()}
+    return {k: format_device_key(device) for k, device in available_audio_device_details().items()}
 
 
-def _default_audio_device_index() -> str:
-    """Returns the index of the default audio device"""
-    return format_device_index(default_audio_device_details())
+def _default_audio_device_key() -> str:
+    """Returns the key of the default audio device"""
+    return format_device_key(default_audio_device_details())
 
 
-def format_device_index(device: dict) -> str:
+def format_device_key(device: dict) -> str:
     """
-    Formats the index that will be used to identify the audio device within the UI and the schema.
+    Formats the key that will be used to identify the audio device within the UI and the schema.
     Now uses 'hostapi name: device name' so that indexes do not change if audio devices are added or removed
     The colon seperator is to retain compatibility with the front end UI, which groups devices by hostapi
     """
@@ -89,8 +89,8 @@ def refresh_audio_schema(running_config=None) -> vol.Schema:
         {
             vol.Optional(
                 "audio_device",
-                default=_default_audio_device_index(),
-            ): vol.Any(vol.In(available_audio_devices()), vol.SetTo(_default_audio_device_index())),
+                default=_default_audio_device_key(),
+            ): vol.Any(vol.In(available_audio_devices()), vol.SetTo(_default_audio_device_key())),
             vol.Optional(
                 "audio_channel",
                 default=0
@@ -145,7 +145,7 @@ def available_audio_device_details() -> dict:
         if device["max_input_channels"] == 0 or "asio" in device["name"].lower():
             continue
         device["hostapi_name"] = sd.query_hostapis(device["hostapi"])["name"]
-        index = format_device_index(device)
+        index = format_device_key(device)
         available_devices[index] = device
 
     for client in WEB_AUDIO_CLIENTS:
@@ -155,7 +155,7 @@ def available_audio_device_details() -> dict:
             "max_input_channels": 1,
             "client": client,
         }
-        index = format_device_index(client)
+        index = format_device_key(client)
         available_devices[index] = device
 
     return available_devices
