@@ -19,18 +19,44 @@ from .schema import (AUDIO_CONFIG_SCHEMA, available_audio_devices, default_audio
 _LOGGER = logging.getLogger(__name__)
 
 
+def _force_mono(device: dict) -> bool:
+    """
+    Force the audio device to use a single channel?
+    If not using a Windows loopback device, select one channel only. Windows devices will use a sampler process to
+    downmix to mono.
+    This is similar to the long standing prior implementation. Issue seen with poor audio behaviour on Mac and Linux.
+    """
+    if "WASAPI" in device.get('hostapi_name') and "loopback" in device['name'].lower():
+        _LOGGER.info("WASAPI Loopback device detected: %s", device['name'])
+        return False
+    return True
+
+
+def _extra_settings(device: dict):
+    """
+    Return any host api specific extra settings for this device.
+    None unless this is a CoreAudio device with multiple channels.
+    """
+    if device["hostapi_name"] == "Core Audio" and device["channel"] > 0:
+        return sd.CoreAudioSettings(
+            channel_map=[device["channel"]],
+        )
+    return None
+
+
 class AudioInputSource:
     _audio_stream_active = False
     _audio = None
     _stream = None
     _audioWindowSize = 4
     _processed_audio_sample = None
-    _volume = -90
+    _volume = -90  # TODO: should _volume be int or float?
     _volume_filter = ExpFilter(-90, alpha_decay=0.99, alpha_rise=0.99)
     _subscriber_threshold = 0
     _timer = None
 
     def __init__(self, ledfx_instance, config):
+        self._frequency_domain = None
         self._ledfx = ledfx_instance
         self._config = config
         self._active_device = None
@@ -176,29 +202,21 @@ class AudioInputSource:
         else:
             self.delay_queue = None
 
+        # Prepare a resampler. Used to downmix Windows loopback devices to mono
+        self.resampler = samplerate.Resampler("sinc_fastest", channels=1)
+
     def _open_audio_stream(self, device):
         """
         Opens an audio stream for the specified input device.
         Parameters:
         device_idx (int): The index of the input device to open the audio stream for.
         Behavior:
-        - Detects if the device is a Windows WASAPI Loopback device and logs its name and channel count.
         - If the device is a WEB AUDIO device, initializes a WebAudioStream and sets it as the active audio stream.
         - For other devices, initializes an InputStream with the device's default sample rate and other parameters.
         - Initializes a resampler with the "sinc_fastest" algorithm that downmixes the source to a single-channel.
         - Logs the name of the opened audio source.
         - Starts the audio stream and sets the audio stream active flag to True.
         """
-
-        if "WASAPI" in device.get('hostapi_name') and "loopback" in device['name'].lower():
-            _LOGGER.info("WASAPI Loopback device detected: %s", device['name'])
-            mono = False
-        else:
-            # if not using a Windows loopback device, downmix to mono
-            # issue seen with poor audio behaviour on Mac and Linux
-            # this is similar to the long standing prior implementation
-            mono = True
-
         if device.get('hostapi_name') == WEB_AUDIO_NAME:
             ledfx.api.websocket.ACTIVE_AUDIO_STREAM = self._stream = (
                 WebAudioStream(
@@ -216,15 +234,13 @@ class AudioInputSource:
                     device["default_samplerate"]
                     / self._config["sample_rate"]
                 ),
-                channels=1 if mono else None,
+                channels=1 if _force_mono(device) else None,
+                extra_settings=_extra_settings(device),
             )
-
-        self.resampler = samplerate.Resampler("sinc_fastest", channels=1)
-
-        _LOGGER.info("Audio source opened: %s", device['display_name'])
 
         self._stream.start()
         self._audio_stream_active = True
+        _LOGGER.info("Audio source opened: %s", device['display_name'])
 
     def deactivate(self):
         with self.lock:
@@ -290,7 +306,8 @@ class AudioInputSource:
 
         if len(processed_audio_sample) != out_sample_len:
             _LOGGER.debug(
-                f"Discarded malformed audio frame - {len(processed_audio_sample)} samples, expected {out_sample_len}"
+                "Discarded malformed audio frame -  samples, expected %s",
+                len(processed_audio_sample), out_sample_len
             )
             return
 
@@ -357,7 +374,6 @@ class AudioInputSource:
 
     def audio_sample(self, raw=False):
         """Returns the raw audio sample"""
-
         if raw:
             return self._raw_audio_sample
         return self._processed_audio_sample
