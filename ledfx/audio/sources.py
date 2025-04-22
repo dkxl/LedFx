@@ -12,7 +12,7 @@ from ledfx.effects.math import ExpFilter
 from ledfx.effects.melbank import MIC_RATE
 from ledfx.events import AudioDeviceChangeEvent, Event
 
-from .schema import (refresh_audio_schema, available_audio_device_details, default_audio_device_details,
+from .schema import (AUDIO_CONFIG_SCHEMA, available_audio_devices, default_audio_device_index,
                      WEB_AUDIO_NAME)
 
 
@@ -49,10 +49,6 @@ class AudioInputSource:
 
         self._ledfx.events.add_listener(shutdown_event, Event.LEDFX_SHUTDOWN)
 
-    def active_audio_schema(self):
-        """Returns the config schema for the active sound device"""
-        return refresh_audio_schema(self._ledfx.config)
-
     def active_device_index(self):
         """Returns the active audio device index"""
         return self._active_device['index']
@@ -66,7 +62,7 @@ class AudioInputSource:
         if self._audio_stream_active:
             self.deactivate()
 
-        self._config = self.active_audio_schema()(config)
+        self._config = AUDIO_CONFIG_SCHEMA(config)
 
         if len(self._callbacks) != 0:
             self.activate()
@@ -77,7 +73,7 @@ class AudioInputSource:
             self._ledfx.events.fire_event(
                 AudioDeviceChangeEvent(
                     # TODO: who subscribes to this event? Do they need the device attributes or just the device name?
-                    available_audio_device_details()[self._config["audio_device"]]
+                    available_audio_devices()[self._config["audio_device"]]
                 )
             )
         self._ledfx.config["audio"] = self._config
@@ -92,9 +88,10 @@ class AudioInputSource:
                 self._ledfx.stop()
 
         # Check the available input devices - the configured device may have been removed
-        available_devices = available_audio_device_details()
+        available_devices = available_audio_devices()
+        default_device_idx = default_audio_device_index()
 
-        if not available_devices:
+        if not available_devices or default_device_idx not in available_devices:
             _LOGGER.warning(
                 "No audio input devices available. Unable to activate audio source. Deactivating."
             )
@@ -103,20 +100,20 @@ class AudioInputSource:
 
         _LOGGER.debug("********************************************")
         _LOGGER.debug("Available audio input devices:")
-        for index, device in available_devices.items():
+        for idx, device in available_devices.items():
             _LOGGER.debug(
-                "%s\tchannels: %s",
-                index, device["max_input_channels"]
+                "%s\t%s",
+                idx, device['display_name']
             )
         _LOGGER.debug("********************************************")
 
         if self._config["audio_device"] in available_devices:
             new_audio_device = available_devices[self._config["audio_device"]]
         else:
-            new_audio_device = default_audio_device_details()
+            new_audio_device = available_devices[default_device_idx]
             _LOGGER.warning(
                 "Requested audio device %s not available, reverting to default input device %s",
-                self._config["audio_device"], new_audio_device['name'],
+                self._config["audio_device"], new_audio_device['display_name'],
             )
 
         try:
@@ -125,7 +122,7 @@ class AudioInputSource:
         except (sd.PortAudioError, OSError) as err:
             _LOGGER.critical(
                 "Unable to open Audio Device %s: %s - please retry",
-                new_audio_device['name'], err
+                new_audio_device['display_name'], err
             )
             self.deactivate()
 
@@ -224,7 +221,7 @@ class AudioInputSource:
 
         self.resampler = samplerate.Resampler("sinc_fastest", channels=1)
 
-        _LOGGER.info("Audio source opened: %s", device['name'])
+        _LOGGER.info("Audio source opened: %s", device['display_name'])
 
         self._stream.start()
         self._audio_stream_active = True
