@@ -8,7 +8,7 @@ import numpy as np
 
 
 from ledfx.effects.math import ExpFilter
-from ledfx.effects.melbank import MIC_RATE, Melbanks
+from ledfx.effects.audio.melbank import MIC_RATE, Melbanks
 
 from .sources import AudioInputSource
 
@@ -304,4 +304,3 @@ class AudioAnalysisSource(AudioInputSource):
            oscillator
         """
         return self.bar_oscillator() % 1
-

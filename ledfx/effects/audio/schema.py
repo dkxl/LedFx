@@ -9,7 +9,7 @@ import logging
 import voluptuous as vol
 import sounddevice as sd
 
-from ledfx.effects.melbank import FFT_SIZE
+from ledfx.effects.audio.melbank import FFT_SIZE
 from ledfx.api.websocket import WEB_AUDIO_CLIENTS
 
 

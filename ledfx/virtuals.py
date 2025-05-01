@@ -14,7 +14,7 @@ from ledfx.color import parse_color
 from ledfx.config import save_config
 from ledfx.effects import DummyEffect
 from ledfx.effects.math import interpolate_pixels, make_pattern
-from ledfx.effects.melbank import (
+from ledfx.effects.audio.melbank import (
     MAX_FREQ,
     MIN_FREQ,
     MIN_FREQ_DIFFERENCE,

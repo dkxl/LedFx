@@ -7,7 +7,7 @@ import numpy as np
 
 from ledfx.effects import Effect
 from ledfx.effects.math import ExpFilter
-from .analysis import AudioAnalysisSource
+from ledfx.effects.audio.analysis import AudioAnalysisSource
 
 _LOGGER = logging.getLogger(__name__)
 

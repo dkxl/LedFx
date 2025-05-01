@@ -4,8 +4,9 @@ Exposes base classes for Audio Reactive effects
 """
 from .sources import AudioInputSource
 from .analysis import AudioAnalysisSource
-from .effects import AudioReactiveEffect
+from .effect import AudioReactiveEffect
 from .schema import AUDIO_CONFIG_SCHEMA, audio_device_selector
+from .melbank import Melbank, Melbanks
 
 __version__ = "0.1.0"
 __all__ = [
@@ -14,6 +15,8 @@ __all__ = [
     'AudioReactiveEffect',
     'AUDIO_CONFIG_SCHEMA',
     'audio_device_selector',
+    'Melbank',
+    'Melbanks',
 ]
 
 # Only used by pitchSpectrum effect

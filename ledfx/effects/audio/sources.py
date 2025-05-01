@@ -9,7 +9,7 @@ import sounddevice as sd
 import ledfx.api.websocket
 from ledfx.api.websocket import WebAudioStream
 from ledfx.effects.math import ExpFilter
-from ledfx.effects.melbank import MIC_RATE
+from ledfx.effects.audio.melbank import MIC_RATE
 from ledfx.events import AudioDeviceChangeEvent, Event
 
 from .schema import (AUDIO_CONFIG_SCHEMA, available_audio_devices, default_audio_device_index,
@@ -24,7 +24,7 @@ def _force_mono(device: dict) -> bool:
     Force the audio device to use a single channel?
     If not using a Windows loopback device, select one channel only. Windows devices will use a sampler process to
     downmix to mono.
-    This is similar to the long standing prior implementation. Issue seen with poor audio behaviour on Mac and Linux.
+    This is similar to the prior implementation. Issue seen with poor audio behaviour on Mac and Linux.
     """
     if "WASAPI" in device.get('hostapi_name') and "loopback" in device['name'].lower():
         _LOGGER.info("WASAPI Loopback device detected: %s", device['name'])
@@ -67,7 +67,7 @@ class AudioInputSource:
         self.update_config(config)
 
         def shutdown_event(e):
-            # We give the rest of LedFx a second to shutdown before we deactivate the audio subsystem.
+            # We give the rest of LedFx a second to shut down before we deactivate the audio subsystem.
             # This is to prevent LedFx hanging on shutdown if the audio subsystem is still running while
             # effects are being unloaded. This is a bit hacky but it works.
             self._timer = threading.Timer(0.5, self.check_and_deactivate)
@@ -98,8 +98,7 @@ class AudioInputSource:
         ):
             self._ledfx.events.fire_event(
                 AudioDeviceChangeEvent(
-                    # TODO: who subscribes to this event? Do they need the device attributes or just the device name?
-                    available_audio_devices()[self._config["audio_device"]]
+                    "None" if self._active_device is None else self._active_device["display_name"]
                 )
             )
         self._ledfx.config["audio"] = self._config
@@ -154,7 +153,7 @@ class AudioInputSource:
 
     def _prepare_filters(self):
         """Configure audio filters"""
-        # Setup a pre-emphasis filter to balance the input volume of lows to highs
+        # Set up a pre-emphasis filter to balance the input volume of lows to highs
         self.pre_emphasis = aubio.digital_filter(3)
         # depending on the coeffs type, we need to use different pre_emphasis values to make em work better. allegedly.
         selected_coeff = self._ledfx.config["melbanks"]["coeffs_type"]
@@ -181,7 +180,7 @@ class AudioInputSource:
             dtype=np.float32,
         )
 
-        # Setup the phase vocoder to perform a windowed FFT
+        # Set up the phase vocoder to perform a windowed FFT
         self._phase_vocoder = aubio.pvoc(
             self._config["fft_size"],
             MIC_RATE // self._config["sample_rate"],
@@ -346,7 +345,7 @@ class AudioInputSource:
         should be done here. Everything else should be deferred until
         queried by an effect.
         """
-        # clean up nans that have been mysteriously appearing..
+        # clean up nans that have been mysteriously appearing.
         self._raw_audio_sample[np.isnan(self._raw_audio_sample)] = 0
 
         # Calculate the current volume for silence detection

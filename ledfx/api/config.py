@@ -16,9 +16,9 @@ from ledfx.config import (
     save_config,
 )
 from ledfx.consts import CONFIGURATION_VERSION
-from ledfx.effects.melbank import Melbanks
+from ledfx.effects.audio.melbank import Melbanks
 from ledfx.events import BaseConfigUpdateEvent
-from ledfx.audio import AUDIO_CONFIG_SCHEMA
+from ledfx.effects.audio import AUDIO_CONFIG_SCHEMA
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ import voluptuous as vol
 
 from ledfx.config import _default_wled_settings
 from ledfx.utils import AVAILABLE_FPS, generate_title
-from ledfx.audio.schema import PERMITTED_AUDIO_KEYS
+from ledfx.effects.audio.schema import PERMITTED_AUDIO_KEYS
 
 TYPES_MAP = {
     int: "integer",
